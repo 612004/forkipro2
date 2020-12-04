@@ -1,496 +1,494 @@
-# ws: a Node.js WebSocket library
+TweetNaCl.js
+============
 
-[![Version npm](https://img.shields.io/npm/v/ws.svg?logo=npm)](https://www.npmjs.com/package/ws)
-[![Build](https://img.shields.io/travis/websockets/ws/master.svg?logo=travis)](https://travis-ci.com/websockets/ws)
-[![Windows x86 Build](https://img.shields.io/appveyor/ci/lpinca/ws/master.svg?logo=appveyor)](https://ci.appveyor.com/project/lpinca/ws)
-[![Coverage Status](https://img.shields.io/coveralls/websockets/ws/master.svg)](https://coveralls.io/github/websockets/ws)
+Port of [TweetNaCl](http://tweetnacl.cr.yp.to) / [NaCl](http://nacl.cr.yp.to/)
+to JavaScript for modern browsers and Node.js. Public domain.
 
-ws is a simple to use, blazing fast, and thoroughly tested WebSocket client and
-server implementation.
+[![Build Status](https://travis-ci.org/dchest/tweetnacl-js.svg?branch=master)
+](https://travis-ci.org/dchest/tweetnacl-js)
 
-Passes the quite extensive Autobahn test suite: [server][server-report],
-[client][client-report].
+Demo: <https://dchest.github.io/tweetnacl-js/>
 
-**Note**: This module does not work in the browser. The client in the docs is a
-reference to a back end with the role of a client in the WebSocket
-communication. Browser clients must use the native
-[`WebSocket`](https://developer.mozilla.org/en-US/docs/Web/API/WebSocket)
-object. To make the same code work seamlessly on Node.js and the browser, you
-can use one of the many wrappers available on npm, like
-[isomorphic-ws](https://github.com/heineiuo/isomorphic-ws).
+Documentation
+=============
 
-## Table of Contents
+* [Overview](#overview)
+* [Audits](#audits)
+* [Installation](#installation)
+* [Examples](#examples)
+* [Usage](#usage)
+  * [Public-key authenticated encryption (box)](#public-key-authenticated-encryption-box)
+  * [Secret-key authenticated encryption (secretbox)](#secret-key-authenticated-encryption-secretbox)
+  * [Scalar multiplication](#scalar-multiplication)
+  * [Signatures](#signatures)
+  * [Hashing](#hashing)
+  * [Random bytes generation](#random-bytes-generation)
+  * [Constant-time comparison](#constant-time-comparison)
+* [System requirements](#system-requirements)
+* [Development and testing](#development-and-testing)
+* [Benchmarks](#benchmarks)
+* [Contributors](#contributors)
+* [Who uses it](#who-uses-it)
 
-- [Protocol support](#protocol-support)
-- [Installing](#installing)
-  - [Opt-in for performance and spec compliance](#opt-in-for-performance-and-spec-compliance)
-- [API docs](#api-docs)
-- [WebSocket compression](#websocket-compression)
-- [Usage examples](#usage-examples)
-  - [Sending and receiving text data](#sending-and-receiving-text-data)
-  - [Sending binary data](#sending-binary-data)
-  - [Simple server](#simple-server)
-  - [External HTTP/S server](#external-https-server)
-  - [Multiple servers sharing a single HTTP/S server](#multiple-servers-sharing-a-single-https-server)
-  - [Client authentication](#client-authentication)
-  - [Server broadcast](#server-broadcast)
-  - [echo.websocket.org demo](#echowebsocketorg-demo)
-  - [Use the Node.js streams API](#use-the-nodejs-streams-api)
-  - [Other examples](#other-examples)
-- [FAQ](#faq)
-  - [How to get the IP address of the client?](#how-to-get-the-ip-address-of-the-client)
-  - [How to detect and close broken connections?](#how-to-detect-and-close-broken-connections)
-  - [How to connect via a proxy?](#how-to-connect-via-a-proxy)
-- [Changelog](#changelog)
-- [License](#license)
 
-## Protocol support
+Overview
+--------
 
-- **HyBi drafts 07-12** (Use the option `protocolVersion: 8`)
-- **HyBi drafts 13-17** (Current default, alternatively option
-  `protocolVersion: 13`)
+The primary goal of this project is to produce a translation of TweetNaCl to
+JavaScript which is as close as possible to the original C implementation, plus
+a thin layer of idiomatic high-level API on top of it.
 
-## Installing
+There are two versions, you can use either of them:
 
-```
-npm install ws
-```
+* `nacl.js` is the port of TweetNaCl with minimum differences from the
+  original + high-level API.
 
-### Opt-in for performance and spec compliance
+* `nacl-fast.js` is like `nacl.js`, but with some functions replaced with
+  faster versions. (Used by default when importing NPM package.)
 
-There are 2 optional modules that can be installed along side with the ws
-module. These modules are binary addons which improve certain operations.
-Prebuilt binaries are available for the most popular platforms so you don't
-necessarily need to have a C++ compiler installed on your machine.
 
-- `npm install --save-optional bufferutil`: Allows to efficiently perform
-  operations such as masking and unmasking the data payload of the WebSocket
-  frames.
-- `npm install --save-optional utf-8-validate`: Allows to efficiently check if a
-  message contains valid UTF-8 as required by the spec.
+Audits
+------
 
-## API docs
+TweetNaCl.js has been audited by [Cure53](https://cure53.de/) in January-February
+2017 (audit was sponsored by [Deletype](https://deletype.com)):
 
-See [`/doc/ws.md`](./doc/ws.md) for Node.js-like documentation of ws classes and
-utility functions.
+> The overall outcome of this audit signals a particularly positive assessment
+> for TweetNaCl-js, as the testing team was unable to find any security
+> problems in the library. It has to be noted that this is an exceptionally
+> rare result of a source code audit for any project and must be seen as a true
+> testament to a development proceeding with security at its core.
+>
+> To reiterate, the TweetNaCl-js project, the source code was found to be
+> bug-free at this point.
+>
+> [...]
+>
+> In sum, the testing team is happy to recommend the TweetNaCl-js project as
+> likely one of the safer and more secure cryptographic tools among its
+> competition.
 
-## WebSocket compression
+[Read full audit report](https://cure53.de/tweetnacl.pdf)
 
-ws supports the [permessage-deflate extension][permessage-deflate] which enables
-the client and server to negotiate a compression algorithm and its parameters,
-and then selectively apply it to the data payloads of each WebSocket message.
 
-The extension is disabled by default on the server and enabled by default on the
-client. It adds a significant overhead in terms of performance and memory
-consumption so we suggest to enable it only if it is really needed.
+Installation
+------------
 
-Note that Node.js has a variety of issues with high-performance compression,
-where increased concurrency, especially on Linux, can lead to [catastrophic
-memory fragmentation][node-zlib-bug] and slow performance. If you intend to use
-permessage-deflate in production, it is worthwhile to set up a test
-representative of your workload and ensure Node.js/zlib will handle it with
-acceptable performance and memory usage.
+You can install TweetNaCl.js via a package manager:
 
-Tuning of permessage-deflate can be done via the options defined below. You can
-also use `zlibDeflateOptions` and `zlibInflateOptions`, which is passed directly
-into the creation of [raw deflate/inflate streams][node-zlib-deflaterawdocs].
+[Yarn](https://yarnpkg.com/):
 
-See [the docs][ws-server-options] for more options.
+    $ yarn add tweetnacl
 
-```js
-const WebSocket = require('ws');
+[NPM](https://www.npmjs.org/):
 
-const wss = new WebSocket.Server({
-  port: 8080,
-  perMessageDeflate: {
-    zlibDeflateOptions: {
-      // See zlib defaults.
-      chunkSize: 1024,
-      memLevel: 7,
-      level: 3
-    },
-    zlibInflateOptions: {
-      chunkSize: 10 * 1024
-    },
-    // Other options settable:
-    clientNoContextTakeover: true, // Defaults to negotiated value.
-    serverNoContextTakeover: true, // Defaults to negotiated value.
-    serverMaxWindowBits: 10, // Defaults to negotiated value.
-    // Below options specified as default values.
-    concurrencyLimit: 10, // Limits zlib concurrency for perf.
-    threshold: 1024 // Size (in bytes) below which messages
-    // should not be compressed.
-  }
-});
-```
+    $ npm install tweetnacl
 
-The client will only use the extension if it is supported and enabled on the
-server. To always disable the extension on the client set the
-`perMessageDeflate` option to `false`.
+or [download source code](https://github.com/dchest/tweetnacl-js/releases).
 
-```js
-const WebSocket = require('ws');
 
-const ws = new WebSocket('ws://www.host.com/path', {
-  perMessageDeflate: false
-});
-```
+Examples
+--------
+You can find usage examples in our [wiki](https://github.com/dchest/tweetnacl-js/wiki/Examples).
 
-## Usage examples
 
-### Sending and receiving text data
+Usage
+-----
 
-```js
-const WebSocket = require('ws');
+All API functions accept and return bytes as `Uint8Array`s.  If you need to
+encode or decode strings, use functions from
+<https://github.com/dchest/tweetnacl-util-js> or one of the more robust codec
+packages.
 
-const ws = new WebSocket('ws://www.host.com/path');
+In Node.js v4 and later `Buffer` objects are backed by `Uint8Array`s, so you
+can freely pass them to TweetNaCl.js functions as arguments. The returned
+objects are still `Uint8Array`s, so if you need `Buffer`s, you'll have to
+convert them manually; make sure to convert using copying: `Buffer.from(array)`
+(or `new Buffer(array)` in Node.js v4 or earlier), instead of sharing:
+`Buffer.from(array.buffer)` (or `new Buffer(array.buffer)` Node 4 or earlier),
+because some functions return subarrays of their buffers.
 
-ws.on('open', function open() {
-  ws.send('something');
-});
 
-ws.on('message', function incoming(data) {
-  console.log(data);
-});
-```
+### Public-key authenticated encryption (box)
 
-### Sending binary data
+Implements *x25519-xsalsa20-poly1305*.
 
-```js
-const WebSocket = require('ws');
+#### nacl.box.keyPair()
 
-const ws = new WebSocket('ws://www.host.com/path');
+Generates a new random key pair for box and returns it as an object with
+`publicKey` and `secretKey` members:
 
-ws.on('open', function open() {
-  const array = new Float32Array(5);
-
-  for (var i = 0; i < array.length; ++i) {
-    array[i] = i / 2;
-  }
-
-  ws.send(array);
-});
-```
-
-### Simple server
-
-```js
-const WebSocket = require('ws');
-
-const wss = new WebSocket.Server({ port: 8080 });
-
-wss.on('connection', function connection(ws) {
-  ws.on('message', function incoming(message) {
-    console.log('received: %s', message);
-  });
-
-  ws.send('something');
-});
-```
-
-### External HTTP/S server
-
-```js
-const fs = require('fs');
-const https = require('https');
-const WebSocket = require('ws');
-
-const server = https.createServer({
-  cert: fs.readFileSync('/path/to/cert.pem'),
-  key: fs.readFileSync('/path/to/key.pem')
-});
-const wss = new WebSocket.Server({ server });
-
-wss.on('connection', function connection(ws) {
-  ws.on('message', function incoming(message) {
-    console.log('received: %s', message);
-  });
-
-  ws.send('something');
-});
-
-server.listen(8080);
-```
-
-### Multiple servers sharing a single HTTP/S server
-
-```js
-const http = require('http');
-const WebSocket = require('ws');
-const url = require('url');
-
-const server = http.createServer();
-const wss1 = new WebSocket.Server({ noServer: true });
-const wss2 = new WebSocket.Server({ noServer: true });
-
-wss1.on('connection', function connection(ws) {
-  // ...
-});
-
-wss2.on('connection', function connection(ws) {
-  // ...
-});
-
-server.on('upgrade', function upgrade(request, socket, head) {
-  const pathname = url.parse(request.url).pathname;
-
-  if (pathname === '/foo') {
-    wss1.handleUpgrade(request, socket, head, function done(ws) {
-      wss1.emit('connection', ws, request);
-    });
-  } else if (pathname === '/bar') {
-    wss2.handleUpgrade(request, socket, head, function done(ws) {
-      wss2.emit('connection', ws, request);
-    });
-  } else {
-    socket.destroy();
-  }
-});
-
-server.listen(8080);
-```
-
-### Client authentication
-
-```js
-const http = require('http');
-const WebSocket = require('ws');
-
-const server = http.createServer();
-const wss = new WebSocket.Server({ noServer: true });
-
-wss.on('connection', function connection(ws, request, client) {
-  ws.on('message', function message(msg) {
-    console.log(`Received message ${msg} from user ${client}`);
-  });
-});
-
-server.on('upgrade', function upgrade(request, socket, head) {
-  // This function is not defined on purpose. Implement it with your own logic.
-  authenticate(request, (err, client) => {
-    if (err || !client) {
-      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-      socket.destroy();
-      return;
+    {
+       publicKey: ...,  // Uint8Array with 32-byte public key
+       secretKey: ...   // Uint8Array with 32-byte secret key
     }
 
-    wss.handleUpgrade(request, socket, head, function done(ws) {
-      wss.emit('connection', ws, request, client);
+
+#### nacl.box.keyPair.fromSecretKey(secretKey)
+
+Returns a key pair for box with public key corresponding to the given secret
+key.
+
+#### nacl.box(message, nonce, theirPublicKey, mySecretKey)
+
+Encrypts and authenticates message using peer's public key, our secret key, and
+the given nonce, which must be unique for each distinct message for a key pair.
+
+Returns an encrypted and authenticated message, which is
+`nacl.box.overheadLength` longer than the original message.
+
+#### nacl.box.open(box, nonce, theirPublicKey, mySecretKey)
+
+Authenticates and decrypts the given box with peer's public key, our secret
+key, and the given nonce.
+
+Returns the original message, or `null` if authentication fails.
+
+#### nacl.box.before(theirPublicKey, mySecretKey)
+
+Returns a precomputed shared key which can be used in `nacl.box.after` and
+`nacl.box.open.after`.
+
+#### nacl.box.after(message, nonce, sharedKey)
+
+Same as `nacl.box`, but uses a shared key precomputed with `nacl.box.before`.
+
+#### nacl.box.open.after(box, nonce, sharedKey)
+
+Same as `nacl.box.open`, but uses a shared key precomputed with `nacl.box.before`.
+
+#### Constants
+
+##### nacl.box.publicKeyLength = 32
+
+Length of public key in bytes.
+
+##### nacl.box.secretKeyLength = 32
+
+Length of secret key in bytes.
+
+##### nacl.box.sharedKeyLength = 32
+
+Length of precomputed shared key in bytes.
+
+##### nacl.box.nonceLength = 24
+
+Length of nonce in bytes.
+
+##### nacl.box.overheadLength = 16
+
+Length of overhead added to box compared to original message.
+
+
+### Secret-key authenticated encryption (secretbox)
+
+Implements *xsalsa20-poly1305*.
+
+#### nacl.secretbox(message, nonce, key)
+
+Encrypts and authenticates message using the key and the nonce. The nonce must
+be unique for each distinct message for this key.
+
+Returns an encrypted and authenticated message, which is
+`nacl.secretbox.overheadLength` longer than the original message.
+
+#### nacl.secretbox.open(box, nonce, key)
+
+Authenticates and decrypts the given secret box using the key and the nonce.
+
+Returns the original message, or `null` if authentication fails.
+
+#### Constants
+
+##### nacl.secretbox.keyLength = 32
+
+Length of key in bytes.
+
+##### nacl.secretbox.nonceLength = 24
+
+Length of nonce in bytes.
+
+##### nacl.secretbox.overheadLength = 16
+
+Length of overhead added to secret box compared to original message.
+
+
+### Scalar multiplication
+
+Implements *x25519*.
+
+#### nacl.scalarMult(n, p)
+
+Multiplies an integer `n` by a group element `p` and returns the resulting
+group element.
+
+#### nacl.scalarMult.base(n)
+
+Multiplies an integer `n` by a standard group element and returns the resulting
+group element.
+
+#### Constants
+
+##### nacl.scalarMult.scalarLength = 32
+
+Length of scalar in bytes.
+
+##### nacl.scalarMult.groupElementLength = 32
+
+Length of group element in bytes.
+
+
+### Signatures
+
+Implements [ed25519](http://ed25519.cr.yp.to).
+
+#### nacl.sign.keyPair()
+
+Generates new random key pair for signing and returns it as an object with
+`publicKey` and `secretKey` members:
+
+    {
+       publicKey: ...,  // Uint8Array with 32-byte public key
+       secretKey: ...   // Uint8Array with 64-byte secret key
+    }
+
+#### nacl.sign.keyPair.fromSecretKey(secretKey)
+
+Returns a signing key pair with public key corresponding to the given
+64-byte secret key. The secret key must have been generated by
+`nacl.sign.keyPair` or `nacl.sign.keyPair.fromSeed`.
+
+#### nacl.sign.keyPair.fromSeed(seed)
+
+Returns a new signing key pair generated deterministically from a 32-byte seed.
+The seed must contain enough entropy to be secure. This method is not
+recommended for general use: instead, use `nacl.sign.keyPair` to generate a new
+key pair from a random seed.
+
+#### nacl.sign(message, secretKey)
+
+Signs the message using the secret key and returns a signed message.
+
+#### nacl.sign.open(signedMessage, publicKey)
+
+Verifies the signed message and returns the message without signature.
+
+Returns `null` if verification failed.
+
+#### nacl.sign.detached(message, secretKey)
+
+Signs the message using the secret key and returns a signature.
+
+#### nacl.sign.detached.verify(message, signature, publicKey)
+
+Verifies the signature for the message and returns `true` if verification
+succeeded or `false` if it failed.
+
+#### Constants
+
+##### nacl.sign.publicKeyLength = 32
+
+Length of signing public key in bytes.
+
+##### nacl.sign.secretKeyLength = 64
+
+Length of signing secret key in bytes.
+
+##### nacl.sign.seedLength = 32
+
+Length of seed for `nacl.sign.keyPair.fromSeed` in bytes.
+
+##### nacl.sign.signatureLength = 64
+
+Length of signature in bytes.
+
+
+### Hashing
+
+Implements *SHA-512*.
+
+#### nacl.hash(message)
+
+Returns SHA-512 hash of the message.
+
+#### Constants
+
+##### nacl.hash.hashLength = 64
+
+Length of hash in bytes.
+
+
+### Random bytes generation
+
+#### nacl.randomBytes(length)
+
+Returns a `Uint8Array` of the given length containing random bytes of
+cryptographic quality.
+
+**Implementation note**
+
+TweetNaCl.js uses the following methods to generate random bytes,
+depending on the platform it runs on:
+
+* `window.crypto.getRandomValues` (WebCrypto standard)
+* `window.msCrypto.getRandomValues` (Internet Explorer 11)
+* `crypto.randomBytes` (Node.js)
+
+If the platform doesn't provide a suitable PRNG, the following functions,
+which require random numbers, will throw exception:
+
+* `nacl.randomBytes`
+* `nacl.box.keyPair`
+* `nacl.sign.keyPair`
+
+Other functions are deterministic and will continue working.
+
+If a platform you are targeting doesn't implement secure random number
+generator, but you somehow have a cryptographically-strong source of entropy
+(not `Math.random`!), and you know what you are doing, you can plug it into
+TweetNaCl.js like this:
+
+    nacl.setPRNG(function(x, n) {
+      // ... copy n random bytes into x ...
     });
-  });
-});
 
-server.listen(8080);
-```
+Note that `nacl.setPRNG` *completely replaces* internal random byte generator
+with the one provided.
 
-Also see the provided [example][session-parse-example] using `express-session`.
 
-### Server broadcast
+### Constant-time comparison
 
-A client WebSocket broadcasting to all connected WebSocket clients, including
-itself.
+#### nacl.verify(x, y)
 
-```js
-const WebSocket = require('ws');
+Compares `x` and `y` in constant time and returns `true` if their lengths are
+non-zero and equal, and their contents are equal.
 
-const wss = new WebSocket.Server({ port: 8080 });
+Returns `false` if either of the arguments has zero length, or arguments have
+different lengths, or their contents differ.
 
-wss.on('connection', function connection(ws) {
-  ws.on('message', function incoming(data) {
-    wss.clients.forEach(function each(client) {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(data);
-      }
-    });
-  });
-});
-```
 
-A client WebSocket broadcasting to every other connected WebSocket clients,
-excluding itself.
+System requirements
+-------------------
 
-```js
-const WebSocket = require('ws');
+TweetNaCl.js supports modern browsers that have a cryptographically secure
+pseudorandom number generator and typed arrays, including the latest versions
+of:
 
-const wss = new WebSocket.Server({ port: 8080 });
+* Chrome
+* Firefox
+* Safari (Mac, iOS)
+* Internet Explorer 11
 
-wss.on('connection', function connection(ws) {
-  ws.on('message', function incoming(data) {
-    wss.clients.forEach(function each(client) {
-      if (client !== ws && client.readyState === WebSocket.OPEN) {
-        client.send(data);
-      }
-    });
-  });
-});
-```
+Other systems:
 
-### echo.websocket.org demo
+* Node.js
 
-```js
-const WebSocket = require('ws');
 
-const ws = new WebSocket('wss://echo.websocket.org/', {
-  origin: 'https://websocket.org'
-});
+Development and testing
+------------------------
 
-ws.on('open', function open() {
-  console.log('connected');
-  ws.send(Date.now());
-});
+Install NPM modules needed for development:
 
-ws.on('close', function close() {
-  console.log('disconnected');
-});
+    $ npm install
 
-ws.on('message', function incoming(data) {
-  console.log(`Roundtrip time: ${Date.now() - data} ms`);
+To build minified versions:
 
-  setTimeout(function timeout() {
-    ws.send(Date.now());
-  }, 500);
-});
-```
+    $ npm run build
 
-### Use the Node.js streams API
+Tests use minified version, so make sure to rebuild it every time you change
+`nacl.js` or `nacl-fast.js`.
 
-```js
-const WebSocket = require('ws');
+### Testing
 
-const ws = new WebSocket('wss://echo.websocket.org/', {
-  origin: 'https://websocket.org'
-});
+To run tests in Node.js:
 
-const duplex = WebSocket.createWebSocketStream(ws, { encoding: 'utf8' });
+    $ npm run test-node
 
-duplex.pipe(process.stdout);
-process.stdin.pipe(duplex);
-```
+By default all tests described here work on `nacl.min.js`. To test other
+versions, set environment variable `NACL_SRC` to the file name you want to test.
+For example, the following command will test fast minified version:
 
-### Other examples
+    $ NACL_SRC=nacl-fast.min.js npm run test-node
 
-For a full example with a browser client communicating with a ws server, see the
-examples folder.
+To run full suite of tests in Node.js, including comparing outputs of
+JavaScript port to outputs of the original C version:
 
-Otherwise, see the test cases.
+    $ npm run test-node-all
 
-## FAQ
+To prepare tests for browsers:
 
-### How to get the IP address of the client?
+    $ npm run build-test-browser
 
-The remote IP address can be obtained from the raw socket.
+and then open `test/browser/test.html` (or `test/browser/test-fast.html`) to
+run them.
 
-```js
-const WebSocket = require('ws');
+To run tests in both Node and Electron:
 
-const wss = new WebSocket.Server({ port: 8080 });
+    $ npm test
 
-wss.on('connection', function connection(ws, req) {
-  const ip = req.socket.remoteAddress;
-});
-```
+### Benchmarking
 
-When the server runs behind a proxy like NGINX, the de-facto standard is to use
-the `X-Forwarded-For` header.
+To run benchmarks in Node.js:
 
-```js
-wss.on('connection', function connection(ws, req) {
-  const ip = req.headers['x-forwarded-for'].split(/\s*,\s*/)[0];
-});
-```
+    $ npm run bench
+    $ NACL_SRC=nacl-fast.min.js npm run bench
 
-### How to detect and close broken connections?
+To run benchmarks in a browser, open `test/benchmark/bench.html` (or
+`test/benchmark/bench-fast.html`).
 
-Sometimes the link between the server and the client can be interrupted in a way
-that keeps both the server and the client unaware of the broken state of the
-connection (e.g. when pulling the cord).
 
-In these cases ping messages can be used as a means to verify that the remote
-endpoint is still responsive.
+Benchmarks
+----------
 
-```js
-const WebSocket = require('ws');
+For reference, here are benchmarks from MacBook Pro (Retina, 13-inch, Mid 2014)
+laptop with 2.6 GHz Intel Core i5 CPU (Intel) in Chrome 53/OS X and Xiaomi Redmi
+Note 3 smartphone with 1.8 GHz Qualcomm Snapdragon 650 64-bit CPU (ARM) in
+Chrome 52/Android:
 
-function noop() {}
+|               | nacl.js Intel | nacl-fast.js Intel  |   nacl.js ARM | nacl-fast.js ARM  |
+| ------------- |:-------------:|:-------------------:|:-------------:|:-----------------:|
+| salsa20       | 1.3 MB/s      | 128 MB/s            |  0.4 MB/s     |  43 MB/s          |
+| poly1305      | 13 MB/s       | 171 MB/s            |  4 MB/s       |  52 MB/s          |
+| hash          | 4 MB/s        | 34 MB/s             |  0.9 MB/s     |  12 MB/s          |
+| secretbox 1K  | 1113 op/s     | 57583 op/s          |  334 op/s     |  14227 op/s       |
+| box 1K        | 145 op/s      | 718 op/s            |  37 op/s      |  368 op/s         |
+| scalarMult    | 171 op/s      | 733 op/s            |  56 op/s      |  380 op/s         |
+| sign          | 77  op/s      | 200 op/s            |  20 op/s      |  61 op/s          |
+| sign.open     | 39  op/s      | 102  op/s           |  11 op/s      |  31 op/s          |
 
-function heartbeat() {
-  this.isAlive = true;
-}
+(You can run benchmarks on your devices by clicking on the links at the bottom
+of the [home page](https://tweetnacl.js.org)).
 
-const wss = new WebSocket.Server({ port: 8080 });
+In short, with *nacl-fast.js* and 1024-byte messages you can expect to encrypt and
+authenticate more than 57000 messages per second on a typical laptop or more than
+14000 messages per second on a $170 smartphone, sign about 200 and verify 100
+messages per second on a laptop or 60 and 30 messages per second on a smartphone,
+per CPU core (with Web Workers you can do these operations in parallel),
+which is good enough for most applications.
 
-wss.on('connection', function connection(ws) {
-  ws.isAlive = true;
-  ws.on('pong', heartbeat);
-});
 
-const interval = setInterval(function ping() {
-  wss.clients.forEach(function each(ws) {
-    if (ws.isAlive === false) return ws.terminate();
+Contributors
+------------
 
-    ws.isAlive = false;
-    ws.ping(noop);
-  });
-}, 30000);
+See AUTHORS.md file.
 
-wss.on('close', function close() {
-  clearInterval(interval);
-});
-```
 
-Pong messages are automatically sent in response to ping messages as required by
-the spec.
+Third-party libraries based on TweetNaCl.js
+-------------------------------------------
 
-Just like the server example above your clients might as well lose connection
-without knowing it. You might want to add a ping listener on your clients to
-prevent that. A simple implementation would be:
+* [forward-secrecy](https://github.com/alax/forward-secrecy) — Axolotl ratchet implementation
+* [nacl-stream](https://github.com/dchest/nacl-stream-js) - streaming encryption
+* [tweetnacl-auth-js](https://github.com/dchest/tweetnacl-auth-js) — implementation of [`crypto_auth`](http://nacl.cr.yp.to/auth.html)
+* [tweetnacl-sealed-box](https://github.com/whs/tweetnacl-sealed-box) — implementation of [`sealed boxes`](https://download.libsodium.org/doc/public-key_cryptography/sealed_boxes.html)
+* [chloride](https://github.com/dominictarr/chloride) - unified API for various NaCl modules
 
-```js
-const WebSocket = require('ws');
 
-function heartbeat() {
-  clearTimeout(this.pingTimeout);
+Who uses it
+-----------
 
-  // Use `WebSocket#terminate()`, which immediately destroys the connection,
-  // instead of `WebSocket#close()`, which waits for the close timer.
-  // Delay should be equal to the interval at which your server
-  // sends out pings plus a conservative assumption of the latency.
-  this.pingTimeout = setTimeout(() => {
-    this.terminate();
-  }, 30000 + 1000);
-}
+Some notable users of TweetNaCl.js:
 
-const client = new WebSocket('wss://echo.websocket.org/');
-
-client.on('open', heartbeat);
-client.on('ping', heartbeat);
-client.on('close', function clear() {
-  clearTimeout(this.pingTimeout);
-});
-```
-
-### How to connect via a proxy?
-
-Use a custom `http.Agent` implementation like [https-proxy-agent][] or
-[socks-proxy-agent][].
-
-## Changelog
-
-We're using the GitHub [releases][changelog] for changelog entries.
-
-## License
-
-[MIT](LICENSE)
-
-[changelog]: https://github.com/websockets/ws/releases
-[client-report]: http://websockets.github.io/ws/autobahn/clients/
-[https-proxy-agent]: https://github.com/TooTallNate/node-https-proxy-agent
-[node-zlib-bug]: https://github.com/nodejs/node/issues/8871
-[node-zlib-deflaterawdocs]:
-  https://nodejs.org/api/zlib.html#zlib_zlib_createdeflateraw_options
-[permessage-deflate]: https://tools.ietf.org/html/rfc7692
-[server-report]: http://websockets.github.io/ws/autobahn/servers/
-[session-parse-example]: ./examples/express-session-parse
-[socks-proxy-agent]: https://github.com/TooTallNate/node-socks-proxy-agent
-[ws-server-options]:
-  https://github.com/websockets/ws/blob/master/doc/ws.md#new-websocketserveroptions-callback
+* [GitHub](https://github.com)
+* [MEGA](https://github.com/meganz/webclient)
+* [Stellar](https://www.stellar.org/)
+* [miniLock](https://github.com/kaepora/miniLock)
